@@ -1,0 +1,88 @@
+Franklin Algorithm with MPI
+
+Information
+
+A decentralized algorithm that has a better message complexity than Chang-Robert's Algorithm.
+The algorithm is used on a Ring Topology.
+
+Integrating the MPI with Franklin Algorithm requires a slight change with how the algorithm works.
+
+Every active process compare its own message with the neighboring processes' message.
+If there is a neighboring process that has a larger message, then the active process will be ignored.
+In an undirected ring:
+	The active process p receive from q and r.
+		if max{q,r} < p, then p remains.
+		if max{q,r} > p, then p is ignored.
+		if max{q,r} = p, then p becomes leader.
+
+With these conditions, I needed to figure out which API will be used.
+
+1st assumption: 
+In order to receive an incoming message, there must be an outgoing message. 
+
+2nd assumption:
+let n be the number of process in the communicator world. 
+The 1st proccess has to send to the nth process and the nth process has to send to the 1st process.
+
+3rd assumption:  	
+The receiving process must compare its own value with the incoming value.
+
+4th assumption:
+The larger value amongst its neighboring process shall remain in the comm world.
+
+5th assumption:
+After figuring out the process(es) that have a greater value than its neighboring values, we might have more than 1 processes left in the comm world.
+
+6th assumption:
+To proceed to the next round, all send/receive events must be done.   
+
+7th assumption: 
+David Nguyen
+Dr. Doina Bein
+11/25/20
+CPSC 474-01
+
+To ignore the unwanted processes, we must need another comm world that that will only include the wanted processes.
+
+8th assumption: 
+Since there are some values that have neighbors that means a leader has not been elected. The algorithm will be repeated.
+
+9th assumption:
+When there is only one value left, a leader has been elected.
+
+Example: 
+Circular Doubly Linked List: 5 <-> 3 <-> 1 <-> 4 <-> 2 <-> 5...
+							 5 <-> 4 
+							 5
+							 
+MPI API:
+
+MPI_INIT - starts the MPI
+
+MPI_INT - Data type that will store our values
+
+MPI_Comm_Rank(MPI_COMM_WORLD, myrank, ierr) - gets the rank information
+
+MPI_COMM_WORLD - given communicator
+
+myrank - returned integer value for the rank.
+
+MPI_Comm_Size(MPI_COMM_WORLD, numprocs, ierr) - numprocs is the returned number of processes.
+
+MPI_Send(&buffer, count, datatype, dest, tag, comm) - to send the value to the left and right neighbor.
+
+MPI_Recv(&buffer, count, datatype, src, tag, comm, &status) - to receive from the left and right neighbor
+
+MPI_Barrier(MPI_Comm communicator) - make sure every process wait until all of them call this barrier.
+
+MPI_Comm_group(MPI_Comm comm, MPI_GROUP *group) - handle to be used as input for functions.
+
+int MPI_Group_incl( MPI_Group old_group, int count, int *members, MPI_Group *new_group) - include whatever is in the old group depending on some predicate in the new group.
+
+int MPI_Group_excl(MPI_Group group, int count, int *nonmembers, MPI_Group *new_group) - exclude whatever is in the nonmembers from the old the group and put the remaining in the new group.
+
+int MPI_Comm_create( MPI_Comm old_comm, MPI_Group group, MPI_Comm *new_comm) - create a new communicator to include specific processes from an existing communicator.
+
+int MPI_Group_free(MPI_Group * group) - returns a group to the system when its no longer needed.
+
+MPI_FINALIZE
