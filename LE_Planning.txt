@@ -1,3 +1,7 @@
+David Nguyen
+Dr. Doina Bein
+11/25/20
+CPSC 474-01
 Franklin Algorithm with MPI
 
 Information
@@ -18,7 +22,7 @@ In an undirected ring:
 With these conditions, I needed to figure out which API will be used.
 
 1st assumption: 
-In order to receive an incoming message, there must be an outgoing message. 
+The initiators must send its message to outgoing links on the initial stage. 
 
 2nd assumption:
 let n be the number of process in the communicator world. 
@@ -37,10 +41,6 @@ After figuring out the process(es) that have a greater value than its neighborin
 To proceed to the next round, all send/receive events must be done.   
 
 7th assumption: 
-David Nguyen
-Dr. Doina Bein
-11/25/20
-CPSC 474-01
 
 To ignore the unwanted processes, we must need another comm world that that will only include the wanted processes.
 

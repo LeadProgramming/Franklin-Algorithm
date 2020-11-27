@@ -28,52 +28,83 @@ void displayList(vector<int> x) {
 	}
 	cout << endl;
 }
-
 int main(int argc, char* argv[])
 {
 	size_t len = stoi(argv[1]);
-	vector<int> datalist;
-	int tag = 0;
+	vector<int> datalist = randGenerator(len);
+
 	MPI_Init(&argc, &argv);
+	//token
+	int count = 0;
+
 	int rank;
 	int size;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
-
-	//MPI_Bcast(&datalist[0], datalist.size(), MPI_INT, 0, MPI_COMM_WORLD);
+	MPI_Status status;
+	MPI_Request req;
+	//consumer	
 	if (rank == 0) {
-		datalist = randGenerator(len);
-		tag = 0;
+		vector<int> selected;
 		displayList(datalist);
-	}
-	//initial start we send.
-	//if (tag == 0) {
-	//	MPI_Send(&datalist[0], datalist.size(), MPI_INT, size, size, MPI_COMM_WORLD);
-	//	MPI_Send(&datalist[0], datalist.size(), MPI_INT, 2, 1, MPI_COMM_WORLD);
-	//}
-	//MPI_Send(&datalist[tag], datalist.size(), MPI_INT , tag + 1, tag + 1, MPI_COMM_WORLD);
-	//MPI_Send(&datalist[tag], datalist.size(), MPI_INT , tag - 1, tag - 1, MPI_COMM_WORLD);
-	//else {
-	//	MPI_Recv();
-	//	MPI_Recv();
-	//}
 
-	//if(rank != 0){
-	//	if (rank == size+1) {
-	//		MPI_Send(&datalist[0], datalist.size(), MPI_INT, tag, MPI_COMM_WORLD);
-	//	}
-	//	else {
-	//		MPI_Send(&datalist[rank-1], datalist.size(), MPI_INT, tag, MPI_COMM_WORLD);
-	//	}
-	//}
-	//shared resource we need mutex
+		for (int i = 0; i < count; i++) {
+			MPI_Probe(MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
+			if (status.MPI_ERROR) {
+				char error_str[512];
+				int len;
+				MPI_Error_string(status.MPI_ERROR, error_str, &len);
+				cout << error_str << endl;
+			}
+			else {
+				cout << "CONSUMER SOURCE RECEIVED: " << status.MPI_SOURCE << endl;
+				MPI_Recv(&datalist[status.MPI_SOURCE - 1], 1, MPI_INT, status.MPI_SOURCE, 0, MPI_COMM_WORLD, &status);
+				count++;
+				MPI_Wait(&req, &status);
 
-	tag++;
-	if (tag > size) {
-		tag = 0;
+				cout << "Consumer Received: Rank = " << status.MPI_SOURCE << " : " << datalist[status.MPI_SOURCE - 1] << endl;
+				selected.push_back(datalist[status.MPI_SOURCE - 1]);
+			}
+		}
+
 	}
+	//producer
+	else {
+		MPI_Status status;
+		cout << "Rank: " << rank << endl;
+		int tmp = datalist[rank - 1];
+
+		int left = rank - 1;
+		int right = rank + 1;
+		if (rank == 1) {
+			left = size - 1;
+			right = rank + 1;
+		}
+		else if (rank == size - 1) {
+			left = 1;
+			right = rank - 1;
+		}
+		MPI_Isend(&datalist[rank - 1], 1, MPI_INT, left, 0, MPI_COMM_WORLD,&req);
+		MPI_Isend(&datalist[rank - 1], 1, MPI_INT, right, 0, MPI_COMM_WORLD, &req);
+		MPI_Wait(&req, &status);
+
+		MPI_Irecv(&datalist[rank - 1], 1, MPI_INT, left, 0, MPI_COMM_WORLD, &req);
+		if (datalist[rank - 1] > tmp) {
+			tmp = datalist[rank - 1];
+		}
+		MPI_Irecv(&datalist[rank - 1], 1, MPI_INT, right, 0, MPI_COMM_WORLD, &req);
+
+		if (datalist[rank - 1] > tmp) {
+			tmp = datalist[rank - 1];
+		}
+		//we only want the heavy influencers.
+		if (tmp != datalist[rank - 1]) {
+			cout << "Provider Collected: " << rank << " : " << tmp << endl;
+			MPI_Send(&tmp, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+		}
+	}
+
 	MPI_Finalize();
-
 	return 0;
 }
 

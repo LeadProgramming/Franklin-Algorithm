@@ -1,0 +1,3 @@
+1st assumption: 
+The initiators must send its message to outgoing links on the initial stage.
+
