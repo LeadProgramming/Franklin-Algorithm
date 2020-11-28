@@ -34,45 +34,44 @@ int main(int argc, char* argv[])
 	vector<int> datalist = randGenerator(len);
 
 	MPI_Init(&argc, &argv);
-	//token
-	int count = 0;
-
 	int rank;
 	int size;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+
+	//token
+	int control[2] = { 0, 0 };
+
 	MPI_Status status;
 	MPI_Request req;
 	//consumer	
 	if (rank == 0) {
 		vector<int> selected;
 		displayList(datalist);
-
-		for (int i = 0; i < count; i++) {
-			MPI_Probe(MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
-			if (status.MPI_ERROR) {
-				char error_str[512];
-				int len;
-				MPI_Error_string(status.MPI_ERROR, error_str, &len);
-				cout << error_str << endl;
-			}
-			else {
-				cout << "CONSUMER SOURCE RECEIVED: " << status.MPI_SOURCE << endl;
-				MPI_Recv(&datalist[status.MPI_SOURCE - 1], 1, MPI_INT, status.MPI_SOURCE, 0, MPI_COMM_WORLD, &status);
-				count++;
-				MPI_Wait(&req, &status);
-
+		//raymond algorithm 
+		MPI_Send(&control[0], 1, MPI_INT, 1, 0, MPI_COMM_WORLD);
+		MPI_Recv(&control[0], 1, MPI_INT, size - 1, 0, MPI_COMM_WORLD, &status);
+		if (status.MPI_SOURCE == size - 1) {
+			cout << control[0] << endl;
+			for (int i = 0; i < control[0]; i++) {
+				MPI_Recv(&control[1], 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
 				cout << "Consumer Received: Rank = " << status.MPI_SOURCE << " : " << datalist[status.MPI_SOURCE - 1] << endl;
-				selected.push_back(datalist[status.MPI_SOURCE - 1]);
+				selected.push_back(control[1]);
+			}
+			for (int i : selected) {
+				cout << i << " ";
 			}
 		}
 
 	}
 	//producer
 	else {
+
+		control[1] = datalist[rank - 1];
 		MPI_Status status;
+		MPI_Request req;
 		cout << "Rank: " << rank << endl;
-		int tmp = datalist[rank - 1];
 
 		int left = rank - 1;
 		int right = rank + 1;
@@ -84,24 +83,29 @@ int main(int argc, char* argv[])
 			left = 1;
 			right = rank - 1;
 		}
-		MPI_Isend(&datalist[rank - 1], 1, MPI_INT, left, 0, MPI_COMM_WORLD,&req);
-		MPI_Isend(&datalist[rank - 1], 1, MPI_INT, right, 0, MPI_COMM_WORLD, &req);
-		MPI_Wait(&req, &status);
-
-		MPI_Irecv(&datalist[rank - 1], 1, MPI_INT, left, 0, MPI_COMM_WORLD, &req);
-		if (datalist[rank - 1] > tmp) {
-			tmp = datalist[rank - 1];
+		MPI_Send(&datalist[rank - 1], 1, MPI_INT, left, 0, MPI_COMM_WORLD);
+		MPI_Send(&datalist[rank - 1], 1, MPI_INT, right, 0, MPI_COMM_WORLD);
+		MPI_Recv(&datalist[rank - 1], 1, MPI_INT, left, 0, MPI_COMM_WORLD, &status);
+		if (datalist[rank - 1] > control[1]) {
+			control[1] = datalist[rank - 1];
 		}
-		MPI_Irecv(&datalist[rank - 1], 1, MPI_INT, right, 0, MPI_COMM_WORLD, &req);
-
-		if (datalist[rank - 1] > tmp) {
-			tmp = datalist[rank - 1];
+		MPI_Recv(&datalist[rank - 1], 1, MPI_INT, right, 0, MPI_COMM_WORLD, &status);
+		if (datalist[rank - 1] > control[1]) {
+			control[1] = datalist[rank - 1];
 		}
+		MPI_Recv(&control[0], 1, MPI_INT, rank - 1, 0, MPI_COMM_WORLD, &status);
 		//we only want the heavy influencers.
-		if (tmp != datalist[rank - 1]) {
-			cout << "Provider Collected: " << rank << " : " << tmp << endl;
-			MPI_Send(&tmp, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+		if (control[1] != datalist[rank - 1]) {
+			cout << "Provider Sending: " << rank << " : " << control[1] << endl;
+			MPI_Send(&control[1], 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+			control[0]++;
 		}
+	}
+	if (rank == size - 1) {
+		MPI_Send(&control[0], 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+	}
+	else {
+		MPI_Send(&control[0], 1, MPI_INT, rank + 1, 0, MPI_COMM_WORLD);
 	}
 
 	MPI_Finalize();
