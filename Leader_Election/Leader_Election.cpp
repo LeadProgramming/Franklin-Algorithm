@@ -28,9 +28,12 @@ void displayList(vector<int> x) {
 	}
 	cout << endl;
 }
+
 int main(int argc, char* argv[])
 {
+	srand(time(NULL));
 	size_t len = stoi(argv[1]);
+
 	vector<int> datalist = randGenerator(len);
 
 	MPI_Init(&argc, &argv);
@@ -39,38 +42,29 @@ int main(int argc, char* argv[])
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-
-	//token
-	int control[2] = { 0, 0 };
-
 	MPI_Status status;
 	MPI_Request req;
+
+	vector<int> maybes;
+
 	//consumer	
 	if (rank == 0) {
-		vector<int> selected;
 		displayList(datalist);
+		MPI_Barrier(MPI_COMM_WORLD);
 		//raymond algorithm 
-		MPI_Send(&control[0], 1, MPI_INT, 1, 0, MPI_COMM_WORLD);
-		MPI_Recv(&control[0], 1, MPI_INT, size - 1, 0, MPI_COMM_WORLD, &status);
+		MPI_Recv(&maybes[0], 1, MPI_INT, size - 1, 0, MPI_COMM_WORLD, &status);
 		if (status.MPI_SOURCE == size - 1) {
-			cout << control[0] << endl;
-			for (int i = 0; i < control[0]; i++) {
-				MPI_Recv(&control[1], 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
-				cout << "Consumer Received: Rank = " << status.MPI_SOURCE << " : " << datalist[status.MPI_SOURCE - 1] << endl;
-				selected.push_back(control[1]);
-			}
-			for (int i : selected) {
-				cout << i << " ";
+			cout << maybes.size() << endl;
+			for (int i = 0; i < maybes.size(); i++) {
+				cout << "Consumer Received: Rank = " << status.MPI_SOURCE << " : " << maybes[i] << endl;
 			}
 		}
 
 	}
 	//producer
 	else {
-
-		control[1] = datalist[rank - 1];
+		int tmp = datalist[rank - 1];
 		MPI_Status status;
-		MPI_Request req;
 		cout << "Rank: " << rank << endl;
 
 		int left = rank - 1;
@@ -84,28 +78,40 @@ int main(int argc, char* argv[])
 			right = rank - 1;
 		}
 		MPI_Send(&datalist[rank - 1], 1, MPI_INT, left, 0, MPI_COMM_WORLD);
+		MPI_Irecv(&datalist[rank - 1], 1, MPI_INT, left, 0, MPI_COMM_WORLD, &req);
+		if (datalist[rank - 1] > tmp) {
+			tmp = datalist[rank - 1];
+		}
+		MPI_Wait(&req, &status);
+
 		MPI_Send(&datalist[rank - 1], 1, MPI_INT, right, 0, MPI_COMM_WORLD);
-		MPI_Recv(&datalist[rank - 1], 1, MPI_INT, left, 0, MPI_COMM_WORLD, &status);
-		if (datalist[rank - 1] > control[1]) {
-			control[1] = datalist[rank - 1];
+		MPI_Irecv(&datalist[rank - 1], 1, MPI_INT, right, 0, MPI_COMM_WORLD, &req);
+		if (datalist[rank - 1] > tmp) {
+			tmp = datalist[rank - 1];
 		}
-		MPI_Recv(&datalist[rank - 1], 1, MPI_INT, right, 0, MPI_COMM_WORLD, &status);
-		if (datalist[rank - 1] > control[1]) {
-			control[1] = datalist[rank - 1];
-		}
-		MPI_Recv(&control[0], 1, MPI_INT, rank - 1, 0, MPI_COMM_WORLD, &status);
+		MPI_Wait(&req, &status);
+		MPI_Barrier(MPI_COMM_WORLD);
 		//we only want the heavy influencers.
-		if (control[1] != datalist[rank - 1]) {
-			cout << "Provider Sending: " << rank << " : " << control[1] << endl;
-			MPI_Send(&control[1], 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-			control[0]++;
+		if (maybes.size() > 0) {
+			MPI_Recv(&maybes[0], maybes.size(), MPI_INT, rank - 1, 0, MPI_COMM_WORLD, &status);
 		}
-	}
-	if (rank == size - 1) {
-		MPI_Send(&control[0], 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-	}
-	else {
-		MPI_Send(&control[0], 1, MPI_INT, rank + 1, 0, MPI_COMM_WORLD);
+		if (tmp == datalist[rank - 1]) {
+			cout << "Provider Sending: " << rank << " : " << tmp << endl;
+			maybes.push_back(tmp);
+			for (int i : maybes) {
+				cout << i << " ";
+			}
+			cout << endl;
+		}
+		if (maybes.size() > 0) {
+			if (rank == size - 1) {
+				MPI_Ssend(&maybes[0], maybes.size(), MPI_INT, 0, 0, MPI_COMM_WORLD);
+			}
+			else {
+				MPI_Ssend(&maybes[0], maybes.size(), MPI_INT, rank + 1, 0, MPI_COMM_WORLD);
+			}
+		}
+
 	}
 
 	MPI_Finalize();
