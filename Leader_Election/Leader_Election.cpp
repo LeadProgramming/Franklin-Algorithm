@@ -53,6 +53,7 @@ int main(int argc, char* argv[])
 		//raymond algorithm 
 		MPI_Ssend(&count, 1, MPI_INT, 1, 0, MPI_COMM_WORLD);
 		MPI_Recv(&count, 1, MPI_INT, size - 1, 0, MPI_COMM_WORLD, &status);
+		MPI_Barrier(MPI_COMM_WORLD);
 		if (status.MPI_SOURCE == size - 1) {
 			cout << count << endl;
 			for (int i = 0; i < count; i++) {
@@ -95,8 +96,6 @@ int main(int argc, char* argv[])
 		//we only want the heavy influencers.
 		MPI_Recv(&count, 1, MPI_INT, rank - 1, 0, MPI_COMM_WORLD, &status);
 		if (tmp == datalist[rank - 1]) {
-			cout << "Provider Sending: " << rank << " : " << tmp << endl;
-			MPI_Send(&tmp, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
 			count++;
 		}
 
@@ -106,8 +105,11 @@ int main(int argc, char* argv[])
 		else {
 			MPI_Ssend(&count, 1, MPI_INT, rank + 1, 0, MPI_COMM_WORLD);
 		}
-
-
+		MPI_Barrier(MPI_COMM_WORLD);
+		if (tmp == datalist[rank - 1]) {
+			cout << "Provider Sending: " << rank << " : " << tmp << endl;
+			MPI_Send(&tmp, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+		}
 	}
 
 	MPI_Finalize();
