@@ -44,11 +44,14 @@ int main(int argc, char* argv[])
 
 	MPI_Status status;
 	MPI_Request req;
+	//MPI_Request* initialSend = new MPI_Request[size*2];
 	int count = 0;
 	int tmp = 0;
 	//consumer	
 	if (rank == 0) {
 		displayList(datalist);
+		MPI_Barrier(MPI_COMM_WORLD);
+		MPI_Barrier(MPI_COMM_WORLD);
 		MPI_Barrier(MPI_COMM_WORLD);
 		//raymond algorithm 
 		MPI_Ssend(&count, 1, MPI_INT, 1, 0, MPI_COMM_WORLD);
@@ -62,13 +65,12 @@ int main(int argc, char* argv[])
 			}
 			cout << endl;
 		}
-
 	}
 	//producer
 	else {
 		tmp = datalist[rank - 1];
 		cout << "Rank: " << rank << endl;
-
+		vector<int> comp;
 		int left = rank - 1;
 		int right = rank + 1;
 		if (rank == 1) {
@@ -80,18 +82,27 @@ int main(int argc, char* argv[])
 			right = rank - 1;
 		}
 		MPI_Send(&datalist[rank - 1], 1, MPI_INT, left, 0, MPI_COMM_WORLD);
-		MPI_Irecv(&datalist[rank - 1], 1, MPI_INT, left, 0, MPI_COMM_WORLD, &req);
-		if (datalist[rank - 1] > tmp) {
-			tmp = datalist[rank - 1];
-		}
-		MPI_Wait(&req, &status);
-
 		MPI_Send(&datalist[rank - 1], 1, MPI_INT, right, 0, MPI_COMM_WORLD);
-		MPI_Irecv(&datalist[rank - 1], 1, MPI_INT, right, 0, MPI_COMM_WORLD, &req);
-		if (datalist[rank - 1] > tmp) {
-			tmp = datalist[rank - 1];
-		}
+		MPI_Barrier(MPI_COMM_WORLD);
+		MPI_Irecv(&datalist[rank - 1], 1, MPI_INT, left, 0, MPI_COMM_WORLD, &req);
+		//if (datalist[rank - 1] > tmp) {
+			comp.push_back(datalist[rank - 1]);
+		//}
 		MPI_Wait(&req, &status);
+		MPI_Irecv(&datalist[rank - 1], 1, MPI_INT, right, 0, MPI_COMM_WORLD, &req);
+		//if (datalist[rank - 1] > tmp) {
+			comp.push_back(datalist[rank - 1]);
+		//}
+		MPI_Wait(&req, &status);
+		MPI_Barrier(MPI_COMM_WORLD);
+		if (datalist[rank - 1] < comp[1] || datalist[rank - 1] < comp[0]) {
+			if (comp[0] > comp[1]) {
+				tmp = comp[0];
+			}
+			else {
+				tmp = comp[1];
+			}
+		}
 		MPI_Barrier(MPI_COMM_WORLD);
 		//we only want the heavy influencers.
 		MPI_Recv(&count, 1, MPI_INT, rank - 1, 0, MPI_COMM_WORLD, &status);
@@ -111,6 +122,7 @@ int main(int argc, char* argv[])
 			MPI_Send(&tmp, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
 		}
 	}
+	//delete[] initialSend;
 
 	MPI_Finalize();
 	return 0;
