@@ -44,27 +44,28 @@ int main(int argc, char* argv[])
 
 	MPI_Status status;
 	MPI_Request req;
-
-	vector<int> maybes;
-
+	int count = 0;
+	int tmp = 0;
 	//consumer	
 	if (rank == 0) {
 		displayList(datalist);
 		MPI_Barrier(MPI_COMM_WORLD);
 		//raymond algorithm 
-		MPI_Recv(&maybes[0], 1, MPI_INT, size - 1, 0, MPI_COMM_WORLD, &status);
+		MPI_Ssend(&count, 1, MPI_INT, 1, 0, MPI_COMM_WORLD);
+		MPI_Recv(&count, 1, MPI_INT, size - 1, 0, MPI_COMM_WORLD, &status);
 		if (status.MPI_SOURCE == size - 1) {
-			cout << maybes.size() << endl;
-			for (int i = 0; i < maybes.size(); i++) {
-				cout << "Consumer Received: Rank = " << status.MPI_SOURCE << " : " << maybes[i] << endl;
+			cout << count << endl;
+			for (int i = 0; i < count; i++) {
+				MPI_Recv(&tmp, 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
+				cout << tmp << " "; 
 			}
+			cout << endl;
 		}
 
 	}
 	//producer
 	else {
-		int tmp = datalist[rank - 1];
-		MPI_Status status;
+		tmp = datalist[rank - 1];
 		cout << "Rank: " << rank << endl;
 
 		int left = rank - 1;
@@ -92,25 +93,20 @@ int main(int argc, char* argv[])
 		MPI_Wait(&req, &status);
 		MPI_Barrier(MPI_COMM_WORLD);
 		//we only want the heavy influencers.
-		if (maybes.size() > 0) {
-			MPI_Recv(&maybes[0], maybes.size(), MPI_INT, rank - 1, 0, MPI_COMM_WORLD, &status);
-		}
+		MPI_Recv(&count, 1, MPI_INT, rank - 1, 0, MPI_COMM_WORLD, &status);
 		if (tmp == datalist[rank - 1]) {
 			cout << "Provider Sending: " << rank << " : " << tmp << endl;
-			maybes.push_back(tmp);
-			for (int i : maybes) {
-				cout << i << " ";
-			}
-			cout << endl;
+			MPI_Send(&tmp, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+			count++;
 		}
-		if (maybes.size() > 0) {
-			if (rank == size - 1) {
-				MPI_Ssend(&maybes[0], maybes.size(), MPI_INT, 0, 0, MPI_COMM_WORLD);
-			}
-			else {
-				MPI_Ssend(&maybes[0], maybes.size(), MPI_INT, rank + 1, 0, MPI_COMM_WORLD);
-			}
+
+		if (rank == size - 1) {
+			MPI_Ssend(&count, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
 		}
+		else {
+			MPI_Ssend(&count, 1, MPI_INT, rank + 1, 0, MPI_COMM_WORLD);
+		}
+
 
 	}
 
