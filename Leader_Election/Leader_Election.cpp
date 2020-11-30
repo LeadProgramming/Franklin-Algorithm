@@ -59,18 +59,29 @@ int main(int argc, char* argv[])
 		MPI_Barrier(MPI_COMM_WORLD);
 		if (status.MPI_SOURCE == size - 1) {
 			cout << count << endl;
+			vector<int> tmpList;
 			for (int i = 0; i < count; i++) {
 				MPI_Recv(&tmp, 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
-				cout << tmp << " "; 
+				cout << tmp << " ";
+				tmpList.push_back(tmp);
 			}
 			cout << endl;
+			if (tmpList.size() == 1) {
+				cout << "Our leader: " << tmpList.front() << endl;
+			}
+			else {
+				datalist = tmpList;
+			}
 		}
+		MPI_Barrier(MPI_COMM_WORLD);
 	}
 	//producer
 	else {
 		tmp = datalist[rank - 1];
 		cout << "Rank: " << rank << endl;
 		vector<int> comp;
+		comp.push_back(datalist[rank - 1]);
+		MPI_Barrier(MPI_COMM_WORLD);
 		int left = rank - 1;
 		int right = rank + 1;
 		if (rank == 1) {
@@ -85,31 +96,17 @@ int main(int argc, char* argv[])
 		MPI_Send(&datalist[rank - 1], 1, MPI_INT, right, 0, MPI_COMM_WORLD);
 		MPI_Barrier(MPI_COMM_WORLD);
 		MPI_Irecv(&datalist[rank - 1], 1, MPI_INT, left, 0, MPI_COMM_WORLD, &req);
-		//if (datalist[rank - 1] > tmp) {
-			comp.push_back(datalist[rank - 1]);
-		//}
+		comp.push_back(datalist[rank - 1]);
 		MPI_Wait(&req, &status);
 		MPI_Irecv(&datalist[rank - 1], 1, MPI_INT, right, 0, MPI_COMM_WORLD, &req);
-		//if (datalist[rank - 1] > tmp) {
-			comp.push_back(datalist[rank - 1]);
-		//}
+		comp.push_back(datalist[rank - 1]);
 		MPI_Wait(&req, &status);
-		MPI_Barrier(MPI_COMM_WORLD);
-		if (datalist[rank - 1] < comp[1] || datalist[rank - 1] < comp[0]) {
-			if (comp[0] > comp[1]) {
-				tmp = comp[0];
-			}
-			else {
-				tmp = comp[1];
-			}
-		}
 		MPI_Barrier(MPI_COMM_WORLD);
 		//we only want the heavy influencers.
 		MPI_Recv(&count, 1, MPI_INT, rank - 1, 0, MPI_COMM_WORLD, &status);
-		if (tmp == datalist[rank - 1]) {
+		if (comp[0] > comp[1] && comp[0] > comp[2]) {
 			count++;
 		}
-
 		if (rank == size - 1) {
 			MPI_Ssend(&count, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
 		}
@@ -117,10 +114,17 @@ int main(int argc, char* argv[])
 			MPI_Ssend(&count, 1, MPI_INT, rank + 1, 0, MPI_COMM_WORLD);
 		}
 		MPI_Barrier(MPI_COMM_WORLD);
-		if (tmp == datalist[rank - 1]) {
+		cout << "Rank: " << rank << " ";
+		for (int i : comp) {
+			cout << i << " ";
+		}
+		cout << endl;
+		if (comp[0] > comp[1] && comp[0] > comp[2]) {
+			tmp = comp[0];
 			cout << "Provider Sending: " << rank << " : " << tmp << endl;
 			MPI_Send(&tmp, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
 		}
+		MPI_Barrier(MPI_COMM_WORLD);
 	}
 	//delete[] initialSend;
 
