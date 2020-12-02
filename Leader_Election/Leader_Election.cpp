@@ -1,4 +1,4 @@
-// Leader_Election.cpp : This file contains the 'main' function. Program execution begins and ends there.
+/// Leader_Election.cpp : This file contains the 'main' function. Program execution begins and ends there.
 /*
 Write a distributed program in MPI that simulates one of the
 leader election algorithms learnt in class for a ring topology
@@ -11,29 +11,26 @@ using a fixed number of processors.
 #include <stdlib.h> /* rand */
 #include <string> /* stoi */
 #include <vector>
-#include "./CPSC-131-Data-Structures-code/CircularDummyNodeDLinkedList.hxx";
-#include <iterator>
 using namespace std;
 
-struct Process {
-	int index;
+struct Proc {
+	int rank;
 	int value;
 };
-DLinkedList<Process> randGenerator(size_t size) {
-	DLinkedList<Process> generated;
+vector<Proc> randGenerator(size_t size) {
+	vector<Proc> result;
 	for (size_t i = 0; i < size; i++) {
-		Process elem;
-		elem.index = i;
-		elem.value = rand() % 1000 + 1;
-		generated.append(elem);
+		Proc p;
+		p.value = rand() % 1000 + 1;
+		p.rank = i + 1;
+		result.push_back(p);
 	}
-	return generated;
+	return result;
 }
-void displayList(DLinkedList<Process> x) {
+void displayList(vector<Proc> x) {
 	cout << "Process 0: ";
-	
-	for (DLinkedList<Process>::Iterator i = x.begin(); i != x.end();i++) {
-		cout << i->value << " ";
+	for (auto i : x) {
+		cout << i.value << " ";
 	}
 	cout << endl;
 }
@@ -42,113 +39,121 @@ int main(int argc, char* argv[])
 	srand(time(NULL));
 	size_t len = stoi(argv[1]);
 
+	vector<Proc> datalist = randGenerator(len);
+	int round = 0;
 	MPI_Init(&argc, &argv);
-	MPI_Datatype node_type;
+	
+	MPI_Datatype proc_type;
 	int lengths[2] = { 1, 1 };
 	const MPI_Aint displacements[2] = { 0, sizeof(int) };
-	MPI_Datatype types[2] = { MPI_INT, MPI_INT };
-	MPI_Type_create_struct(2, lengths, displacements, types, &node_type);
-	MPI_Type_commit(&node_type);
+	MPI_Datatype types[3] = { MPI_INT, MPI_INT };
+	MPI_Type_create_struct(2, lengths, displacements, types, &proc_type);
+	MPI_Type_commit(&proc_type);
 
-	DLinkedList<Process> datalist = randGenerator(len);
-	DLinkedList<Process>::Iterator curr = datalist.begin();
-	int round = 0;
+	MPI_Comm comm_world = MPI_COMM_WORLD;
+
 	while (datalist.size() > 1) {
 		int rank;
 		int size;
-		MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-		MPI_Comm_size(MPI_COMM_WORLD, &size);
+		MPI_Comm_rank(comm_world, &rank);
+		MPI_Comm_size(comm_world, &size);
+		cout << rank << endl;
 
+		struct Proc tmp;
 		MPI_Status status;
 		MPI_Request req;
 		int count = 0;
-		struct Process tmp;
-		tmp.index = 0;
-		tmp.value = 0;
+		tmp.rank = rank;
 		//consumer	
 		if (rank == 0) {
+			MPI_Group group_world;
+			MPI_Comm_group(comm_world, &group_world);
+			MPI_Comm_create(comm_world, group_world, &comm_world);
+			int s;
+			MPI_Group_size(group_world, &s);
+			cout << "GROUP SIZE: " << s << endl;
 			displayList(datalist);
-			for (curr = datalist.begin(); curr != datalist.end(); curr++) {
-				//cout << curr->index << endl;
-				MPI_Send(&*curr, 1, node_type, curr->index + 1, 0, MPI_COMM_WORLD);
-			}
-			//send first
-			MPI_Barrier(MPI_COMM_WORLD);
-			MPI_Barrier(MPI_COMM_WORLD);
-			MPI_Barrier(MPI_COMM_WORLD);
-			MPI_Barrier(MPI_COMM_WORLD);
+			MPI_Barrier(comm_world);
+			MPI_Barrier(comm_world);
+			MPI_Barrier(comm_world);
 			//raymond algorithm 
-			MPI_Ssend(&datalist.front(), datalist.size(), node_type, datalist.front().index + 1, 0, MPI_COMM_WORLD);
-			MPI_Recv(&datalist.front(), datalist.size(), node_type, datalist.back().index + 1, 0, MPI_COMM_WORLD, &status);
-			MPI_Barrier(MPI_COMM_WORLD);
-			if (status.MPI_SOURCE) {
+			MPI_Ssend(&count, 1, MPI_INT, 1, 0, comm_world);
+			MPI_Recv(&count, 1, MPI_INT, size - 1, 0, comm_world, &status);
+			MPI_Barrier(comm_world);
+			if (status.MPI_SOURCE == size - 1) {
 				cout << count << endl;
-				DLinkedList<Process> tmpList;
+				vector<Proc> tmpList;
 				for (int i = 0; i < count; i++) {
-					MPI_Recv(&tmp, 1, node_type, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
+					MPI_Recv(&tmp, 1, proc_type, MPI_ANY_SOURCE, 0, comm_world, &status);
 					cout << tmp.value << " ";
-					tmpList.append(tmp);
+					tmpList.push_back(tmp);
 				}
 				cout << endl;
-				//datalist = tmpList;
+				datalist = tmpList;
+				vector<int> ranks;
+				for (auto i : datalist) {
+					ranks.push_back(i.rank);
+				}
+				MPI_Group_incl(group_world, datalist.size(), ranks.data(), &group_world);
+				//MPI_Group_free(&group_world);
 			}
 			round++;
+			//MPI_Comm_free(&comm_world);
 		}
 		//producer
 		else {
-			//we need to send first
-			MPI_Barrier(MPI_COMM_WORLD);
-			MPI_Recv(&*curr, 1, node_type, 0, 0, MPI_COMM_WORLD, &status);
-			cout << curr->value << endl;
-			cout << datalist.front().value << endl;
-			tmp = *curr;
-			vector<Process> comp;
-			comp.push_back(*curr);
-			
-
-			MPI_Barrier(MPI_COMM_WORLD);
-			MPI_Send(&*curr, 1, node_type, curr.prev(1)->index+1, 0, MPI_COMM_WORLD);
-			MPI_Send(&*curr, 1, node_type, curr.next(1)->index+1, 0, MPI_COMM_WORLD);
-			MPI_Barrier(MPI_COMM_WORLD);
-			MPI_Irecv(&*curr, 1, node_type, curr.prev(1)->index+1, 0, MPI_COMM_WORLD, &req);
-			comp.push_back(*curr);
-			MPI_Wait(&req, &status);
-			MPI_Irecv(&*curr, 1, node_type, curr.next(1)->index+1, 0, MPI_COMM_WORLD, &req);
-			comp.push_back(*curr);
-			MPI_Wait(&req, &status);
-			MPI_Barrier(MPI_COMM_WORLD);
-			MPI_Recv(&datalist.front(), 1, node_type, curr.prev(1)->index+1 , 0, MPI_COMM_WORLD, &status);
-			if (status.MPI_ERROR) {
-				cout << __LINE__ << endl;
+			tmp = datalist[rank - 1];
+			cout << "Rank: " << rank << endl;
+			vector<Proc> comp;
+			comp.push_back(datalist[rank - 1]);
+			MPI_Barrier(comm_world);
+			int left = rank - 1;
+			int right = rank + 1;
+			if (rank == 1) {
+				left = size - 1;
+				right = rank + 1;
 			}
-			////we only want the heavy influencers.
-			//if (comp[0].value > comp[1].value && comp[0].value > comp[2].value) {
-			//	count++;
+			else if (rank == size - 1) {
+				left = 1;
+				right = rank - 1;
+			}
+			MPI_Send(&datalist[rank - 1], 1, proc_type, left, 0, comm_world);
+			MPI_Send(&datalist[rank - 1], 1, proc_type, right, 0, comm_world);
+			MPI_Barrier(comm_world);
+			MPI_Irecv(&datalist[rank - 1], 1, proc_type, left, 0, comm_world, &req);
+			comp.push_back(datalist[rank - 1]);
+			MPI_Wait(&req, &status);
+			MPI_Irecv(&datalist[rank - 1], 1, proc_type, right, 0, comm_world, &req);
+			comp.push_back(datalist[rank - 1]);
+			MPI_Wait(&req, &status);
+			MPI_Barrier(comm_world);
+			//cout << "Rank: " << rank << " ";
+			//for (int i : comp) {
+			//	cout << i << " ";
 			//}
-			//if (rank == size - 1) {
-			//	MPI_Ssend(datalist.data(), 1, node_type, datalist.begin()->index+1, 0, MPI_COMM_WORLD);
-			//}
-			//else {
-			//	MPI_Ssend(datalist.data(), 1, node_type, next(curr,1)->index+1, 0, MPI_COMM_WORLD);
-			//}
-			//MPI_Barrier(MPI_COMM_WORLD);
-			//if (comp[0].value > comp[1].value && comp[0].value > comp[2].value) {
-			//	tmp = comp[0];
-			//	cout << "Provider Sending: " << rank << " : " << tmp.value << endl;
-			//	MPI_Send(&tmp, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-			//}
+			//cout << endl;
+			MPI_Recv(&count, 1, MPI_INT, rank - 1, 0, comm_world, &status);
+			//we only want the heavy influencers.
+			if (comp[0].value > comp[1].value && comp[0].value > comp[2].value) {
+				count++;
+			}
+			if (rank == size - 1) {
+				MPI_Ssend(&count, 1, MPI_INT, 0, 0, comm_world);
+			}
+			else {
+				MPI_Ssend(&count, 1, MPI_INT, rank + 1, 0, comm_world);
+			}
+			MPI_Barrier(comm_world);
+			if (comp[0].value > comp[1].value && comp[0].value > comp[2].value) {
+				tmp = comp[0];
+				cout << "Provider Sending: " << rank << " : " << tmp.value << endl;
+				MPI_Send(&tmp, 1, proc_type, 0, 0, comm_world);
+			}
 		}
-		MPI_Finalize();
 	}
-	//cout << "Our leader: " << datalist.front() << endl;
+	MPI_Finalize();
+	cout << "Our leader: " << datalist.front().value << endl;
 
 
 	return 0;
 }
-
-/*
-*	MPI Basic (Blocking) Send
-	MPI_Send(msg, count, datatype, dest, tag, comm);
-	MPI Basic (Blocking) Receive
-	MPI_Recv(msg, count, datatype, source, tag, comm, status);
-*/
