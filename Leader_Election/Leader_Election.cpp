@@ -57,6 +57,7 @@ int main(int argc, char* argv[])
 	MPI_Type_commit(&proc_type);
 	MPI_Comm comm_world = MPI_COMM_WORLD;
 	bool active = true;
+	int round = 1;
 	while (datalist.size() > 1)
 	{
 		MPI_Status status;
@@ -69,11 +70,10 @@ int main(int argc, char* argv[])
 		//consumer
 		if (rnk == 0)
 		{
+			cout << "ROUND: " << round << endl;
 			//sending the data to every existing processes.
 			for (int i = 0; i < datalist.size(); i++) {
 				MPI_Send(datalist.data(), datalist.size(), proc_type, datalist[i].id, i, comm_world);
-				cout << "ID: " << datalist[i].id << endl;
-				cout << "Value: " << datalist[i].val << endl;
 			}
 			//now we need to send the index of the array to every existing processes. 
 			MPI_Barrier(comm_world);
@@ -83,60 +83,46 @@ int main(int argc, char* argv[])
 			MPI_Barrier(comm_world);
 			MPI_Barrier(comm_world);
 			//raymond algorithm
-			cout << "SEND: " << datalist[0].id << endl;
-			cout << "FINAL: " << datalist[datalist.size() - 1].id << endl;
-			MPI_Ssend(&count, 1, MPI_INT, 1, 0, comm_world);
+
+			MPI_Ssend(&count, 1, MPI_INT, datalist[0].id, 0, comm_world);
 			MPI_Recv(&count, 1, MPI_INT, datalist[datalist.size() - 1].id, 0, comm_world, &status);
-			cout << "COUNT: " << count << endl;
-			cout << "RCV" << endl;
 			MPI_Barrier(comm_world);
-			cout << "RESULT: ";
+			//cout << "RCV COUNT: " << count << endl;
 			for (int i = 0; i < count; i++)
 			{
-				if (count == 1) {
-					cout << "Our leader: ";
-				}
 				MPI_Recv(&p, 1, proc_type, MPI_ANY_SOURCE, 0, comm_world, &status);
-				//sorted insert
+				//sorted insert for idx to avoid out of order comparison.
 				if (!valueList.empty()) {
 					if (p.id > valueList.front().id) {
 						valueList.push_back(p);
 					}
 					else {
-						valueList.insert(valueList.begin(),p);
+						valueList.insert(valueList.begin(), p);
 					}
 				}
 				else {
 					valueList.push_back(p);
 				}
-				cout << p.val << " ";
 			}
-			cout << endl;
+			if (count == 1) {
+				cout << "Our leader: " << p.val << endl;
+				break;
+			}
 			datalist = valueList;
-			for (Proc i : datalist) {
-				cout << i.val << " ";
-			}
-			cout << endl;
-
+			round++;
 		}
 		//producer
 		else
 		{
 			if (active) {
-				cout << "Rank: " << rnk << endl;
+				//cout << "Rank: " << rnk << endl;
 				MPI_Barrier(comm_world);
 				MPI_Probe(0, MPI_ANY_TAG, comm_world, &status);
 				idx = status.MPI_TAG;
-				cout << "IDX: " << idx << endl;
 				int dl_size = 0;
 				MPI_Get_count(&status, proc_type, &dl_size);
 
 				MPI_Recv(datalist.data(), dl_size, proc_type, 0, idx, comm_world, &status);
-				for (int i = 0; i < dl_size; i++) {
-					cout << "VAL: " << datalist[i].val << " ";
-					cout << "ID: " << datalist[i].id << " ";
-				}
-				cout << endl;
 
 				p = datalist[idx];
 				vector<Proc> comp;
@@ -185,28 +171,38 @@ int main(int argc, char* argv[])
 					l = datalist[idx - 1].id;
 					r = datalist[idx].id;
 				}
-				cout << "RNK: " << rnk << " LEFT: " << l;
-				cout << "RIGHT: " << r << endl;
+
 				MPI_Recv(&count, 1, MPI_INT, l, 0, comm_world, &status);
 				//we only want the heavy influencers.
-				if (comp[0].val > comp[1].val && comp[0].val > comp[2].val)
-				{
-					count++;
-				}
-				cout << "SENDING: " << datalist[idx].id << endl;
-
-				MPI_Ssend(&count, 1, MPI_INT, r, 0, comm_world);
-				MPI_Barrier(comm_world);
-				if (comp[0].val > comp[1].val && comp[0].val > comp[2].val)
-				{
-					cout << "PID: " << p.id << endl;
-					cout << "Provider Sending: " << rnk << " : " << p.val << endl;
-					MPI_Send(&p, 1, proc_type, 0, 0, comm_world);
+				if (dl_size == 2) {
+					if (comp[0].val > comp[1].val || comp[0].val > comp[2].val) {
+						count++;
+					}
 				}
 				else {
-					active = false;
+					if (comp[0].val > comp[1].val && comp[0].val > comp[2].val)
+					{
+						count++;
+					}
 				}
-
+				MPI_Ssend(&count, 1, MPI_INT, r, 0, comm_world);
+				MPI_Barrier(comm_world);
+				if (dl_size == 2) {
+					if (comp[0].val > comp[1].val || comp[0].val > comp[2].val) {
+						MPI_Send(&p, 1, proc_type, 0, 0, comm_world);
+					}
+					else {
+						active = false;
+					}
+				}
+				else {
+					if (comp[0].val > comp[1].val && comp[0].val > comp[2].val) {
+						MPI_Send(&p, 1, proc_type, 0, 0, comm_world);
+					}
+					else {
+						active = false;
+					}
+				}
 			}
 			else {
 				MPI_Barrier(comm_world);
@@ -218,7 +214,5 @@ int main(int argc, char* argv[])
 		}
 	}
 	MPI_Finalize();
-	//cout << "Our leader: " << datalist.front().val << endl;
-
 	return 0;
 }
