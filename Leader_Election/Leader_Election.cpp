@@ -187,7 +187,7 @@ int main(int argc, char* argv[])
 
 				MPI_Recv(&count, 1, MPI_INT, l, 0, comm_world, &status);
 				//we only want the heavy influencers.
-				if (dl_size % 2 == 0) {
+				if (dl_size < 5 && dl_size % 2 == 0) {
 					if (comp[0].val > comp[1].val || comp[0].val > comp[2].val) {
 						count++;
 					}
@@ -200,7 +200,7 @@ int main(int argc, char* argv[])
 				}
 				MPI_Ssend(&count, 1, MPI_INT, r, 0, comm_world);
 				MPI_Barrier(comm_world);
-				if (dl_size % 2 == 0) {
+				if (dl_size < 5 && dl_size % 2 == 0) {
 					if (comp[0].val > comp[1].val || comp[0].val > comp[2].val) {
 						MPI_Send(&p, 1, proc_type, 0, 0, comm_world);
 					}
