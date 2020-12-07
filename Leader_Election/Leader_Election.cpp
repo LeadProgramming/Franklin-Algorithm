@@ -19,12 +19,26 @@ struct Proc {
 vector<Proc> randGenerator(size_t size)
 {
 	vector<Proc> result;
-	for (size_t i = 0; i < size; i++)
+	for (size_t i = 0; i < size;)
 	{
 		Proc p;
+		int rando = rand() % size + 1;
+		if (result.size() > 0) {
+			bool isDup = false;
+			for (size_t j = 0; j < result.size(); j++) {
+				if (rando == result[j].val) {
+					isDup = true;
+					break;
+				}
+			}
+			if (isDup) {
+				continue;
+			}
+		}
 		p.id = i + 1;
-		p.val = rand() % 1000 + 1;
+		p.val = rando;
 		result.push_back(p);
+		i++;
 	}
 	return result;
 }
@@ -58,6 +72,7 @@ int main(int argc, char* argv[])
 	MPI_Comm comm_world = MPI_COMM_WORLD;
 	bool active = true;
 	int round = 1;
+	int start = MPI_Wtime();
 	while (datalist.size() > 1)
 	{
 		MPI_Status status;
@@ -106,7 +121,6 @@ int main(int argc, char* argv[])
 			}
 			if (count == 1) {
 				cout << "Our leader: " << p.val << endl;
-				break;
 			}
 			datalist = valueList;
 			round++;
@@ -115,8 +129,7 @@ int main(int argc, char* argv[])
 		else
 		{
 			if (active) {
-				//cout << "Rank: " << rnk << endl;
-				MPI_Barrier(comm_world);
+ 				MPI_Barrier(comm_world);
 				MPI_Probe(0, MPI_ANY_TAG, comm_world, &status);
 				idx = status.MPI_TAG;
 				int dl_size = 0;
@@ -174,7 +187,7 @@ int main(int argc, char* argv[])
 
 				MPI_Recv(&count, 1, MPI_INT, l, 0, comm_world, &status);
 				//we only want the heavy influencers.
-				if (dl_size == 2) {
+				if (dl_size % 2 == 0) {
 					if (comp[0].val > comp[1].val || comp[0].val > comp[2].val) {
 						count++;
 					}
@@ -187,7 +200,7 @@ int main(int argc, char* argv[])
 				}
 				MPI_Ssend(&count, 1, MPI_INT, r, 0, comm_world);
 				MPI_Barrier(comm_world);
-				if (dl_size == 2) {
+				if (dl_size % 2 == 0) {
 					if (comp[0].val > comp[1].val || comp[0].val > comp[2].val) {
 						MPI_Send(&p, 1, proc_type, 0, 0, comm_world);
 					}
@@ -213,6 +226,9 @@ int main(int argc, char* argv[])
 			}
 		}
 	}
+	int end = MPI_Wtime();
+	cout << "Elapsed Time: " << end - start << " secs." << endl;
+	MPI_Abort(comm_world, 0);
 	MPI_Finalize();
 	return 0;
 }
