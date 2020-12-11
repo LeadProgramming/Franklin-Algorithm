@@ -102,7 +102,6 @@ int main(int argc, char* argv[])
 			MPI_Ssend(&count, 1, MPI_INT, datalist[0].id, 0, comm_world);
 			MPI_Recv(&count, 1, MPI_INT, datalist[datalist.size() - 1].id, 0, comm_world, &status);
 			MPI_Barrier(comm_world);
-			//cout << "RCV COUNT: " << count << endl;
 			for (int i = 0; i < count; i++)
 			{
 				MPI_Recv(&p, 1, proc_type, MPI_ANY_SOURCE, 0, comm_world, &status);
@@ -120,7 +119,7 @@ int main(int argc, char* argv[])
 				}
 			}
 			if (count == 1) {
-				cout << "Our leader: " << p.val << endl;
+				cout << "The leader is process " << p.id << " with the highest value of " <<  p.val << endl;
 			}
 			datalist = valueList;
 			round++;
