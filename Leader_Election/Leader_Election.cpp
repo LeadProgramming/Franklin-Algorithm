@@ -12,10 +12,16 @@ using a fixed number of processors.
 #include <string>	/* stoi */
 #include <vector>
 using namespace std;
+
+
 struct Proc {
 	int id;
 	int val;
 };
+
+/*
+	Randomly generates unique values.
+*/
 vector<Proc> randGenerator(size_t size)
 {
 	vector<Proc> result;
@@ -42,6 +48,7 @@ vector<Proc> randGenerator(size_t size)
 	}
 	return result;
 }
+
 void displayList(vector<Proc> x)
 {
 	cout << "Process 0: ";
@@ -56,7 +63,6 @@ int main(int argc, char* argv[])
 {
 	srand(time(NULL));
 	size_t len = stoi(argv[1]);
-
 	vector<Proc> datalist = randGenerator(len);
 	MPI_Init(&argc, &argv);
 	int rnk;
@@ -65,14 +71,17 @@ int main(int argc, char* argv[])
 	MPI_Comm_size(MPI_COMM_WORLD, &sze);
 	MPI_Datatype proc_type;
 	int lengths[2] = { 1, 1 };
+	
 	const MPI_Aint displacements[2] = { 0, sizeof(int) };
 	MPI_Datatype types[2] = { MPI_INT, MPI_INT };
 	MPI_Type_create_struct(2, lengths, displacements, types, &proc_type);
 	MPI_Type_commit(&proc_type);
+	
 	MPI_Comm comm_world = MPI_COMM_WORLD;
 	bool active = true;
 	int round = 1;
 	int start = MPI_Wtime();
+	
 	while (datalist.size() > 1)
 	{
 		MPI_Status status;
@@ -97,7 +106,6 @@ int main(int argc, char* argv[])
 			MPI_Barrier(comm_world);
 			MPI_Barrier(comm_world);
 			MPI_Barrier(comm_world);
-			//raymond algorithm
 
 			MPI_Ssend(&count, 1, MPI_INT, datalist[0].id, 0, comm_world);
 			MPI_Recv(&count, 1, MPI_INT, datalist[datalist.size() - 1].id, 0, comm_world, &status);
@@ -175,7 +183,6 @@ int main(int argc, char* argv[])
 					r = datalist[idx].id;
 				}
 				else if (idx == dl_size - 1) {
-
 					l = datalist[idx - 1].id;
 					r = 0;
 				}
@@ -216,6 +223,7 @@ int main(int argc, char* argv[])
 					}
 				}
 			}
+			//passive nodes don't do anything
 			else {
 				MPI_Barrier(comm_world);
 				MPI_Barrier(comm_world);
