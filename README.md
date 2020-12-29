@@ -1,11 +1,17 @@
-# Franklin Algorithm - Leader Election 
+# Franklin Algorithm
 Please visit my project report for more details! 
 
 ![mpiexec.gif](https://github.com/LeadProgramming/Lamport-Clock/blob/main/mpiexec.gif?raw=true)
 
 ## Summary
 
-A decentralized algorithm that elects the leader based on whichever initiator (process) has the highest ID. Franklin Algorithm uses the ring topology. All initiators are active on the first round, they will transmit and receive values from their left neighbor and right neighbor. Then, the initiator will compare the values to see if it should stay passive or active. If the initiator has the highest value amongst its neighbors then it will stay active and the neighbors become passive. If the initiator has a neighbor who has the highest value then the initiator becomes passive. Instead of making the passive nodes pass on the message to the initiators, I decided to make them idle and have the initiators send the messages to each other. I turned this algorithm into a decrease-and-conquer style algorithm to optimize speed and memory.
+A decentralized algorithm that elects the leader based on whichever initiator (process) has the highest ID. Franklin Algorithm uses the ring topology. All initiators are active on the first round, they will transmit and receive values from their left neighbor and right neighbor. Then, the initiator will compare the values to see if it should stay passive or active. If the initiator has the highest value amongst its neighbors then it will stay active and the neighbors become passive. If the initiator has a neighbor who has the highest value then the initiator becomes passive. 
+
+## Remarks
+
+Instead of making the passive nodes pass on the message to the initiators, I decided to make them idle and have the initiators send the messages to each other. I turned this algorithm into a decrease-and-conquer style algorithm to optimize speed and memory.
+
+The cool thing about this algorithm is that you can use this on a p2p architecture. Let's say you have a gaming app that has matchmaking with other players and you don't want to purchase costly dedicated servers. This algorithm can elect a host before the game starts. Now this might be great for your budget but can be terrible for the user experience. Let's say your game is not that popular and you have an imbalance amount of players from the US and Europe. Now if the algorithm elects a host from either side, then there would be an unfair advantage anyways. Sure you can save a lot of money but ruin the user experience on the long run.
 
 ## Installation
 
