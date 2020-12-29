@@ -1,7 +1,7 @@
 # Franklin Algorithm
 Please visit my project report for more details! 
 
-![mpiexec.gif](https://github.com/LeadProgramming/Lamport-Clock/blob/main/mpiexec.gif?raw=true)
+![mpiexec.gif](https://github.com/LeadProgramming/Franklin-Algorithm/blob/master/mpiexec.gif?raw=true)
 
 ## Summary
 
